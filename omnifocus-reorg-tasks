@@ -1,0 +1,155 @@
+tell application "OmniFocus"
+
+	set today to my datestring(0)
+	set tomorrow to my datestring(1)
+	log "today: " & today
+
+	tell front document
+		using terms from application "OmniFocus"
+			set theProjects to a reference to (flattened projects of it whose status is active)
+			repeat with aProject in theProjects
+				if (name of aProject is "wuradar") then
+					log "Project: " & (name of aProject) & " " & (id of aProject)
+
+					set days_ahead to 0
+					set futureParent to aProject
+					repeat while days_ahead < 14
+						set days_ahead to days_ahead + 1
+						set last_date to my datestring(days_ahead)
+						if my exists_task(last_date, aProject) then
+							log "EXISTS:" & last_date
+						else
+							log "CREATING:" & last_date
+							tell futureParent to make new task with properties {name:last_date}
+						end if
+
+						set futureParent to my move_task_newparent_tail(last_date, aProject, futureParent)
+
+					end repeat
+
+
+
+					set days_ago to 0
+					set previousDayTask to aProject
+					repeat while days_ago > -3
+						set days_ago to days_ago - 1
+						set last_date to my datestring(days_ago)
+						log "last date:" & last_date
+						try
+							log "Moving previous day task: " & last_date
+							set previousDayTask to my move_task_newparent_tail(last_date, aProject, previousDayTask)
+						on error errMsg
+							log "ERROR: " & errMsg
+						end try
+					end repeat
+
+
+					set tomorrowTask to my move_task(tomorrow, aProject)
+					my move_task("________________________________________", aProject)
+					set todayTask to my move_task(today, aProject)
+					set projectsTask to my move_task_newparent_tail("projects", aProject, aProject)
+
+
+				end if
+			end repeat
+
+		end using terms from
+	end tell
+
+end tell
+
+on exists_task(search, parent)
+	set task1 to my find_task(search, parent)
+	if task1 is "" then
+		return false
+	end if
+	return true
+end exists_task
+
+on find_task(search, parent)
+	tell front document
+		using terms from application "OmniFocus"
+
+			try
+				set taskList to (flattened tasks of parent where (name begins with search))
+				repeat with aTask in taskList
+					log "found: " & (name of aTask) & " " & (id of aTask)
+					return aTask
+				end repeat
+			end try
+
+		end using terms from
+	end tell
+	return ""
+end find_task
+
+on move_task(search, parent)
+	return my move_task_newparent(search, parent, parent)
+end move_task
+
+on move_task_newparent(search, parent, newparent)
+	set foundTask to ""
+	tell front document
+		using terms from application "OmniFocus"
+
+			set taskList to (flattened tasks of parent where (name begins with search))
+			repeat with aTask in taskList
+				log "move_task: " & (name of aTask) & " " & (id of aTask)
+				set foundTask to aTask
+				move aTask to beginning of tasks of newparent
+				exit repeat
+			end repeat
+
+
+		end using terms from
+	end tell
+	return foundTask
+end move_task_newparent
+
+on move_task_newparent_tail(search, parent, newparent)
+	set foundTask to ""
+	tell front document
+		using terms from application "OmniFocus"
+
+			set taskList to (flattened tasks of parent where (name begins with search))
+			repeat with aTask in taskList
+				log "move_task: " & (name of aTask) & " " & (id of aTask)
+				set foundTask to aTask
+				move aTask to end of tasks of newparent
+				exit repeat
+			end repeat
+
+
+		end using terms from
+	end tell
+	return foundTask
+end move_task_newparent_tail
+
+on datestring(days)
+	set cd to (the (current date) + (days * 24 * 60 * 60))
+	set the_year to year of (cd) as number
+	set the_month to month of (cd) as number
+	set the_day to day of (cd) as number
+	set the_day_of_week to weekday of (cd)
+	set lcdow to my short_day(the_day_of_week)
+	if the_month < 10 then set the_month to "0" & the_month
+	if the_day < 10 then set the_day to "0" & the_day
+	return ((the_year & "." & the_month & "." & the_day & " " & lcdow) as string)
+end datestring
+
+on short_day(this_text)
+	set charList to characters of (this_text as string)
+	set outString to ""
+
+	repeat with thisChar in charList
+		set charID to id of thisChar
+		if charID > 64 and charID < 91 then
+			set outString to outString & character id (charID + 32)
+		else
+			set outString to outString & thisChar
+		end if
+
+	end repeat
+
+	return (get characters 1 thru 3 of outString)
+end short_day
